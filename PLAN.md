@@ -3,218 +3,255 @@
 ## Overview
 
 A minimal, private web app for note-taking and spaced-repetition flashcard practice.
-Built for a small family, prioritizing low cost, simplicity, and portability.
+Self-hosted on a TrueNAS Scale server, exposed to the internet via Cloudflare Tunnel.
+Containerized with Docker Compose for portability and simple day-to-day ops.
 
 ---
 
 ## Goals
 
-- Per-user auth (family members only)
+- Per-user auth (family members only, invite-only)
 - Create/edit/view notes
 - Create flashcard decks from notes or manually
 - Basic spaced repetition (SM-2 or similar)
-- AWS free tier, serverless where possible
-- Infrastructure as code via Pulumi (TypeScript)
-- Portable, idiomatic tech choices
+- Self-hosted on TrueNAS Scale, no cloud dependencies
+- Accessible from anywhere via Cloudflare Tunnel (no open ports)
 - PWA-ready later (offline support, installable) — deferred
 
 ---
 
 ## Proposed Architecture
 
+### Services (Docker Compose)
+
+```
+cloudflared  ──►  caddy (reverse proxy)
+                    ├──► web   (Nginx serving React SPA)
+                    └──► api   (Node.js/Express + TypeScript)
+                               └──► db (PostgreSQL 16)
+```
+
+| Container    | Image                        | Role                                  |
+|--------------|------------------------------|---------------------------------------|
+| `db`         | `postgres:16-alpine`         | Primary data store                    |
+| `api`        | custom (Node 22 alpine)      | REST API, auth, SRS logic             |
+| `web`        | custom (Nginx alpine)        | Serves built React SPA                |
+| `caddy`      | `caddy:alpine`               | Reverse proxy, routes `/api` vs `/`   |
+| `cloudflared`| `cloudflare/cloudflared`     | Outbound tunnel, no open inbound ports|
+
+---
+
 ### Frontend
 
-**React SPA** (Vite + TypeScript) hosted on **S3 + CloudFront**
+**React SPA** (Vite + TypeScript), built and served by Nginx.
 
-- S3 static hosting is effectively free at this scale
-- CloudFront free tier: 1 TB data transfer + 10M requests/month
-- Custom domain via Route 53 (optional, ~$0.50/mo for hosted zone)
-- Auth handled client-side via AWS Amplify Auth (wraps Cognito)
-
-**Why React/Vite?**
-- Ubiquitous, easy to find help/libraries
-- Vite is fast and minimal
-- No server-side rendering needed for a private family app
+- Nginx serves the static build output
+- All `/api/*` requests proxied by Caddy to the `api` container
+- Auth handled client-side via JWT stored in `localStorage`
+- No framework-specific auth library needed — plain `fetch` with bearer tokens
 
 ---
 
 ### Auth
 
-**Amazon Cognito User Pool**
+**JWT-based auth built into the API** — no external service.
 
-- Free tier: 50,000 MAUs (more than enough)
-- Handles sign-up, sign-in, JWT tokens, password reset
-- Supports invite-only flow: disable self-signup, admin creates users
-- Amplify Auth SDK on the frontend for easy integration
-- JWT tokens passed to API Gateway for authorization
-
-**User management**: Admin creates accounts manually via AWS console or a small
-Pulumi-provisioned user list. No public registration.
+- Passwords hashed with `bcrypt`
+- Login returns a short-lived access token (15 min) + long-lived refresh token (30 days)
+- Refresh token stored in an `HttpOnly` cookie; access token in memory/`localStorage`
+- Admin creates family accounts via a seed script or a `/admin` route (protected)
+- No self-registration endpoint
 
 ---
 
 ### Backend API
 
-**AWS Lambda + API Gateway (HTTP API)**
+**Node.js 22 + Express + TypeScript**
 
-- Lambda free tier: 1M requests/month + 400,000 GB-seconds compute
-- API Gateway HTTP API free tier: 1M requests/month (first 12 months)
-- After 12 months, HTTP API costs ~$1/million requests — negligible at family scale
-- JWT authorizer on API Gateway validates Cognito tokens (no Lambda needed for auth)
+- Keeps the stack in a single language (TS shared between frontend and backend)
+- Deployed as a long-running container — no cold starts, simple ops
+- **Database access**: `postgres` (node-postgres) with hand-written SQL — no ORM bloat
+- Migrations via `node-pg-migrate` (simple, file-based, no magic)
 
-**Runtime**: Node.js (TypeScript compiled) — stays in the JS ecosystem, easy to
-share types with the frontend via a shared package if desired.
-
-**Endpoints (rough)**:
+**Endpoints**:
 ```
+POST   /auth/login
+POST   /auth/refresh
+POST   /auth/logout
+
 GET    /notes
 POST   /notes
-GET    /notes/{id}
-PUT    /notes/{id}
-DELETE /notes/{id}
+GET    /notes/:id
+PUT    /notes/:id
+DELETE /notes/:id
 
 GET    /decks
 POST   /decks
-GET    /decks/{id}
-PUT    /decks/{id}
-DELETE /decks/{id}
+GET    /decks/:id
+PUT    /decks/:id
+DELETE /decks/:id
 
-GET    /decks/{id}/cards
-POST   /decks/{id}/cards
-PUT    /decks/{id}/cards/{cardId}   # update card + SRS state
-DELETE /decks/{id}/cards/{cardId}
+GET    /decks/:id/cards
+POST   /decks/:id/cards
+PUT    /decks/:id/cards/:cardId
+DELETE /decks/:id/cards/:cardId
 
-POST   /decks/{id}/review            # submit review result, returns next card
+POST   /decks/:id/review    # submit result, returns next due card
+GET    /decks/:id/due       # cards due today
 ```
 
 ---
 
 ### Database
 
-**DynamoDB (On-Demand)**
+**PostgreSQL 16**
 
-- Free tier: 25 GB storage + 25 WCU/RCU provisioned (more than enough)
-- On-demand mode preferred: pay per request, $0 at near-zero traffic
-- Single-table design: partition by `userId`, sort key by entity type + id
-- Easy to evolve schema for notes, decks, cards, review history
+Relational schema — a natural fit for structured notes, decks, and card review state.
 
-**Rough single-table schema**:
-```
-PK              | SK                        | Data
-----------------|---------------------------|-------------------------------
-USER#<userId>   | PROFILE                   | name, email, settings
-USER#<userId>   | NOTE#<noteId>             | title, body, tags, timestamps
-USER#<userId>   | DECK#<deckId>             | name, description, timestamps
-USER#<userId>   | CARD#<deckId>#<cardId>    | front, back, SRS state (interval, due, ease)
-USER#<userId>   | REVIEW#<cardId>#<ts>      | result, elapsed (optional log)
+```sql
+users       (id, email, display_name, password_hash, created_at)
+notes       (id, user_id, title, body, created_at, updated_at)
+decks       (id, user_id, name, description, created_at)
+cards       (id, deck_id, note_id nullable, front, back, created_at)
+card_state  (id, card_id, user_id, interval, repetitions, ease_factor, due_date, updated_at)
+review_log  (id, card_id, user_id, rating, reviewed_at)
 ```
 
-GSI if needed for querying cards due for review across decks.
+Data persisted to a ZFS dataset on TrueNAS, bind-mounted into the `db` container.
 
 ---
 
-### Infrastructure Diagram
+### Reverse Proxy
+
+**Caddy**
+
+- Routes `/api/*` → `api:3000`, everything else → `web:80`
+- Listens on internal port 80 (Cloudflare Tunnel terminates TLS externally)
+- Simple, declarative `Caddyfile`; no manual cert management needed
 
 ```
-Browser
-  │
-  ├── CloudFront ──► S3 (React SPA)
-  │
-  └── API Gateway (HTTP API + Cognito JWT Authorizer)
-        │
-        └── Lambda (Node.js handler)
-              │
-              └── DynamoDB (single table)
-
-Auth flow:
-  Browser ──► Cognito (login) ──► JWT ──► API Gateway ──► Lambda
+:80 {
+    handle /api/* {
+        reverse_proxy api:3000
+    }
+    handle {
+        reverse_proxy web:80
+    }
+}
 ```
 
 ---
 
-## Pulumi Layout
+### Cloudflare Tunnel
+
+**`cloudflare/cloudflared`** container, configured via a tunnel token env var.
+
+- No inbound ports opened on TrueNAS or the home router
+- Cloudflare terminates HTTPS and proxies traffic to `caddy:80` inside the stack
+- Tunnel created once in the Cloudflare dashboard; token stored in `.env`
+- DNS record (`notes.yourdomain.com → tunnel`) managed in Cloudflare dashboard
+
+---
+
+### TrueNAS Scale Deployment
+
+TrueNAS Scale's **Apps** system supports Docker Compose directly.
+
+- Place the repo (or just `docker-compose.yml` + configs) on a dataset
+- Persistent data volumes bind-mounted to ZFS datasets (e.g. `/mnt/pool/apps/notes/`)
+- Snapshots and replication handled by TrueNAS — no app-level backup logic needed
+- Optionally run `docker compose up -d` from TrueNAS shell for full control
+
+**Recommended dataset layout**:
+```
+/mnt/pool/apps/notes/
+  data/
+    postgres/    # bind-mounted as /var/lib/postgresql/data
+  compose/
+    docker-compose.yml
+    Caddyfile
+    .env         # secrets (postgres password, tunnel token, jwt secret)
+```
+
+---
+
+## Repository Layout
 
 ```
-infra/
-  index.ts          # root stack, wires everything together
-  cognito.ts        # User Pool, User Pool Client, invite-only config
-  dynamodb.ts       # single table definition + GSIs
-  lambda.ts         # Lambda function + IAM role
-  api.ts            # API Gateway HTTP API + routes + JWT authorizer
-  cdn.ts            # S3 bucket + CloudFront distribution + OAC
-  dns.ts            # Route 53 records (optional)
-  Pulumi.yaml
-  Pulumi.<env>.yaml
+docker-compose.yml
+Caddyfile
+.env.example
 
-src/                # Lambda source (TypeScript)
-  handlers/
-    notes.ts
-    decks.ts
-    cards.ts
-    review.ts
-  lib/
-    db.ts           # DynamoDB client + helpers
-    srs.ts          # SM-2 spaced repetition logic
+api/
+  src/
+    routes/
+      auth.ts
+      notes.ts
+      decks.ts
+      cards.ts
+      review.ts
+    middleware/
+      auth.ts
+    lib/
+      db.ts         # pg pool + query helper
+      srs.ts        # SM-2 algorithm
+    migrations/     # node-pg-migrate files
+  Dockerfile
+  tsconfig.json
+  package.json
 
-web/                # React frontend (Vite)
+web/
   src/
     pages/
     components/
     lib/
+      api.ts        # typed fetch wrappers
+  nginx.conf
+  Dockerfile        # multi-stage: vite build → nginx
+  vite.config.ts
+  tsconfig.json
+  package.json
 ```
-
----
-
-## Cost Estimate (family of ~5, low usage)
-
-| Service          | Free Tier                        | Likely cost   |
-|------------------|----------------------------------|---------------|
-| S3               | 5 GB, 20K PUT, 200K GET          | $0            |
-| CloudFront       | 1 TB transfer, 10M requests      | $0            |
-| Cognito          | 50,000 MAUs                      | $0            |
-| Lambda           | 1M req, 400K GB-sec              | $0            |
-| API Gateway      | 1M req (12 mo free), then ~$1/M  | ~$0           |
-| DynamoDB         | 25 GB, 25 WCU/RCU                | $0            |
-| Route 53         | $0.50/mo per hosted zone         | ~$0.50/mo     |
-| **Total**        |                                  | **~$0.50/mo** |
 
 ---
 
 ## Spaced Repetition
 
-Implement SM-2 (SuperMemo 2) in `src/lib/srs.ts`:
-- Each card stores: `interval` (days), `repetitions`, `easeFactor`, `dueDate`
+SM-2 in `api/src/lib/srs.ts`:
+- Each `card_state` row stores: `interval` (days), `repetitions`, `ease_factor`, `due_date`
 - On review: user rates 0–5, algorithm updates interval and due date
-- Frontend fetches cards due today and presents them in sequence
+- Frontend fetches cards due today via `GET /decks/:id/due`
 - Simple, well-understood, no external dependency
 
 ---
 
 ## Open Questions / Decisions
 
-1. **Monorepo or separate repos?** Monorepo (one repo, `web/`, `src/`, `infra/`) is
-   simpler for a solo/family project.
-2. **Custom domain?** Optional. Can use CloudFront default domain to start.
-3. **Rich text notes or Markdown?** Markdown + a lightweight editor (e.g.
-   CodeMirror or simple textarea) keeps things simple and portable.
-4. **Card creation from notes**: Link cards to a note ID or keep them
-   independent? Start independent, add linking later.
-5. **Environments**: Single `prod` stack to start. Add `dev` if needed.
-6. **CI/CD**: GitHub Actions deploying frontend to S3 + invalidating CloudFront,
-   and running `pulumi up` for infra changes. Deferred initially.
+1. **Shared types**: Use a small `packages/types` workspace package to share
+   request/response types between `api/` and `web/` (npm workspaces).
+2. **Markdown notes**: Simple `textarea` + a lightweight preview (e.g. `marked`)
+   keeps things portable and avoids heavy editor deps.
+3. **Card creation from notes**: Start independent; add "create cards from note"
+   shortcut later.
+4. **Multiple users reviewing the same deck**: `card_state` is per `(card_id, user_id)`
+   so each family member has independent SRS state.
+5. **Updates/upgrades**: `docker compose pull && docker compose up -d` — standard
+   container ops.
 
 ---
 
 ## Next Steps
 
-1. Initialize Pulumi project in `infra/`
-2. Define Cognito User Pool (invite-only) + create family users
-3. Define DynamoDB table
-4. Scaffold Lambda handlers with basic CRUD
-5. Wire API Gateway with JWT authorizer
-6. Scaffold Vite/React frontend with Amplify Auth
-7. Build notes UI
-8. Build flashcard deck + review UI (SM-2)
-9. Deploy and test end-to-end
-10. Harden (error handling, loading states, mobile layout)
-11. PWA (service worker, offline, installable) — later
+1. Scaffold repo with `docker-compose.yml`, `Caddyfile`, `.env.example`
+2. Set up PostgreSQL container + initial schema migration
+3. Scaffold Express API with auth (login, refresh, logout)
+4. Add notes CRUD endpoints
+5. Add decks + cards CRUD endpoints
+6. Implement SM-2 review endpoint
+7. Scaffold Vite/React frontend with auth flow
+8. Build notes UI
+9. Build flashcard deck + review UI
+10. Create Cloudflare Tunnel in dashboard, wire up `cloudflared` container
+11. Deploy on TrueNAS Scale, test end-to-end
+12. Harden (error handling, loading states, mobile layout)
+13. PWA (service worker, offline, installable) — later
