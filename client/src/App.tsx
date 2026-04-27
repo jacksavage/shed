@@ -13,12 +13,18 @@ export default function App() {
   const docRef = useRef<Y.Doc | null>(null)
 
   useEffect(() => {
-    fetch('/api/notes')
-      .then((r) => r.json())
-      .then((data: Note[]) => {
-        setNotes(data)
-        if (data.length > 0) setActiveNoteId(data[0].id)
-      })
+    let initialised = false
+    const fetchNotes = async () => {
+      const data: Note[] = await fetch('/api/notes').then((r) => r.json())
+      setNotes(data)
+      if (!initialised && data.length > 0) {
+        setActiveNoteId(data[0].id)
+        initialised = true
+      }
+    }
+    fetchNotes()
+    const interval = setInterval(fetchNotes, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
