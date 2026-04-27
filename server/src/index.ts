@@ -1,11 +1,13 @@
 import { Server } from '@hocuspocus/server'
 import { onLoadDocument } from './hooks/onLoadDocument'
 import { onStoreDocument } from './hooks/onStoreDocument'
+import { onRequest } from './hooks/onRequest'
 
 const server = Server.configure({
   port: 1234,
   onLoadDocument,
   onStoreDocument,
+  onRequest,
 })
 
 server.listen()
