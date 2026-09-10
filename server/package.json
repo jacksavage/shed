@@ -1,0 +1,19 @@
+{
+  "name": "shed-server",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.15.0",
+    "better-sqlite3": "^11.0.0",
+    "yjs": "^13.6.18"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.10",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.0"
+  }
+}
