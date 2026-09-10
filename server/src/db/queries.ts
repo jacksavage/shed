@@ -12,13 +12,10 @@ const list = db.prepare<[], { id: string; title: string; created_at: number; upd
   'SELECT id, title, created_at, updated_at FROM notes ORDER BY updated_at DESC'
 )
 
-const insert = db.prepare<[string, string, number, number]>(
-  'INSERT INTO notes (id, title, owner_id, created_at, updated_at) VALUES (?, ?, \'anonymous\', ?, ?)'
-)
-
-const updateTitle = db.prepare<[string, number, string]>(
-  'UPDATE notes SET title = ?, updated_at = ? WHERE id = ?'
-)
+const upsert = db.prepare<[string, string, number, number]>(`
+  INSERT INTO notes (id, title, owner_id, created_at, updated_at) VALUES (?, ?, 'anonymous', ?, ?)
+  ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at
+`)
 
 export function loadYdocState(documentName: string): Buffer | null {
   return load.get(documentName)?.state ?? null
@@ -32,12 +29,6 @@ export function listNotes() {
   return list.all()
 }
 
-export function createNote(id: string, title: string) {
-  const now = Date.now()
-  insert.run(id, title, now, now)
-  return { id, title, created_at: now, updated_at: now }
-}
-
-export function setNoteTitle(id: string, title: string) {
-  updateTitle.run(title, Date.now(), id)
+export function upsertNote(id: string, title: string, created_at: number, updated_at: number) {
+  upsert.run(id, title, created_at, updated_at)
 }

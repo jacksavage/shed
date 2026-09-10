@@ -3,30 +3,23 @@ import { Editor } from './components/Editor'
 import { NoteList } from './components/NoteList'
 import { createYdoc } from './lib/ydoc'
 import { createProvider } from './lib/provider'
-import { useNotesStore } from './store/notes'
+import { useNoteList } from './hooks/useNoteList'
 import type * as Y from 'yjs'
-import type { Note } from './types'
 
 export default function App() {
-  const { notes, activeNoteId, setNotes, addNote, setActiveNoteId, updateNoteTitle } = useNotesStore()
+  const { notes, createNote, renameNote } = useNoteList()
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [editorReady, setEditorReady] = useState(false)
   const docRef = useRef<Y.Doc | null>(null)
 
+  // Auto-select the first note once the list loads from IndexedDB
   useEffect(() => {
-    let initialised = false
-    const fetchNotes = async () => {
-      const data: Note[] = await fetch('/api/notes').then((r) => r.json())
-      setNotes(data)
-      if (!initialised && data.length > 0) {
-        setActiveNoteId(data[0].id)
-        initialised = true
-      }
+    if (notes.length > 0 && !activeNoteId) {
+      setActiveNoteId(notes[0].id)
     }
-    fetchNotes()
-    const interval = setInterval(fetchNotes, 5000)
-    return () => clearInterval(interval)
-  }, [])
+  }, [notes, activeNoteId])
 
+  // Re-initialise Y.Doc whenever the active note changes
   useEffect(() => {
     if (!activeNoteId) return
     let cancelled = false
@@ -49,23 +42,13 @@ export default function App() {
     }
   }, [activeNoteId])
 
-  async function handleCreateNote() {
-    const res = await fetch('/api/notes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Untitled' }),
-    })
-    const note: Note = await res.json()
-    addNote(note)
+  function handleCreateNote() {
+    const id = createNote()
+    setActiveNoteId(id)
   }
 
-  async function handleTitleChange(id: string, title: string) {
-    updateNoteTitle(id, title)
-    await fetch(`/api/notes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
-    })
+  function handleTitleChange(id: string, title: string) {
+    renameNote(id, title)
   }
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null
