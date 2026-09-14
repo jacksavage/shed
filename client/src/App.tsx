@@ -11,6 +11,7 @@ export default function App() {
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [editorReady, setEditorReady] = useState(false)
   const docRef = useRef<Y.Doc | null>(null)
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
 
   // Auto-select the first note once the list loads from IndexedDB
   useEffect(() => {
@@ -53,6 +54,13 @@ export default function App() {
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null
 
+  // Reflect remote title changes into the header input, unless the user is actively typing in it
+  useEffect(() => {
+    const el = titleInputRef.current
+    if (!el || document.activeElement === el) return
+    el.value = activeNote?.title ?? ''
+  }, [activeNote?.title])
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <NoteList
@@ -76,9 +84,11 @@ export default function App() {
             <div style={{ padding: '16px 24px 0', borderBottom: '1px solid #e0e0e0' }}>
               <input
                 key={activeNoteId}
+                ref={titleInputRef}
                 defaultValue={activeNote?.title ?? ''}
                 placeholder="Untitled"
-                onBlur={(e) => handleTitleChange(activeNoteId, e.currentTarget.value)}
+                onChange={(e) => handleTitleChange(activeNoteId, e.currentTarget.value)}
+                onBlur={(e) => { e.currentTarget.value = activeNote?.title ?? '' }}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
                 style={{
                   width: '100%',
