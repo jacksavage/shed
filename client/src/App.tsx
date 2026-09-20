@@ -1,15 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { Editor } from './components/Editor'
 import { NoteList } from './components/NoteList'
+import { CommandPalette } from './components/CommandPalette'
 import { createYdoc } from './lib/ydoc'
 import { createProvider } from './lib/provider'
 import { useNoteList } from './hooks/useNoteList'
 import type * as Y from 'yjs'
 
+// Hotkeys should fire from anywhere, including form fields and the ProseMirror editor
+const HOTKEY_OPTS = { enableOnFormTags: true, enableOnContentEditable: true, preventDefault: true }
+
 export default function App() {
   const { notes, createNote, renameNote } = useNoteList()
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [editorReady, setEditorReady] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const docRef = useRef<Y.Doc | null>(null)
   const titleInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -52,6 +58,9 @@ export default function App() {
     renameNote(id, title)
   }
 
+  useHotkeys('mod+k', () => setPaletteOpen((v) => !v), HOTKEY_OPTS)
+  useHotkeys('mod+n', handleCreateNote, HOTKEY_OPTS)
+
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null
 
   // Reflect remote title changes into the header input, unless the user is actively typing in it
@@ -63,11 +72,19 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        notes={notes}
+        onSelectNote={setActiveNoteId}
+        onCreateNote={handleCreateNote}
+      />
       <NoteList
         notes={notes}
         activeNoteId={activeNoteId}
         onSelect={setActiveNoteId}
         onCreateNote={handleCreateNote}
+        onOpenPalette={() => setPaletteOpen(true)}
       />
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!activeNoteId ? (
