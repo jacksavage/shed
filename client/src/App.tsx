@@ -58,8 +58,11 @@ export default function App() {
     renameNote(id, title)
   }
 
-  useHotkeys('mod+k', () => setPaletteOpen((v) => !v), HOTKEY_OPTS)
-  useHotkeys('mod+n', handleCreateNote, HOTKEY_OPTS)
+  // Ctrl+N can't be intercepted in the browser (Chrome reserves it for a new window),
+  // so — same as VS Code for the Web — there's no direct hotkey for "new note"; it's
+  // reachable through the palette instead. Palette shortcuts mirror VS Code's own:
+  // Command Palette (Ctrl+Shift+P, F1) and Quick Open (Ctrl+P).
+  useHotkeys('mod+k, mod+shift+p, mod+p, f1', () => setPaletteOpen((v) => !v), HOTKEY_OPTS)
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null
 

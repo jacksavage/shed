@@ -37,6 +37,7 @@ export function NoteList({ notes, activeNoteId, onSelect, onCreateNote, onOpenPa
         </button>
         <button
           onClick={onOpenPalette}
+          title={`Also: F1, ${shortcutLabel('P')}`}
           style={{
             width: '100%',
             display: 'flex',
@@ -52,7 +53,7 @@ export function NoteList({ notes, activeNoteId, onSelect, onCreateNote, onOpenPa
           }}
         >
           <span>Search…</span>
-          <span style={{ color: '#999' }}>{shortcutLabel('K')}</span>
+          <span style={{ color: '#999' }}>{shortcutLabel('Shift+P')}</span>
         </button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>

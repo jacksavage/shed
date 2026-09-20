@@ -1,6 +1,5 @@
 import { Command } from 'cmdk'
 import type { Note } from '../types'
-import { shortcutLabel } from '../lib/platform'
 
 interface CommandPaletteProps {
   open: boolean
@@ -22,10 +21,7 @@ export function CommandPalette({ open, onOpenChange, notes, onSelectNote, onCrea
       <Command.List>
         <Command.Empty>No results found.</Command.Empty>
         <Command.Group heading="Actions">
-          <Command.Item onSelect={() => run(onCreateNote)}>
-            New note
-            <span className="cmdk-shortcut">{shortcutLabel('N')}</span>
-          </Command.Item>
+          <Command.Item onSelect={() => run(onCreateNote)}>New note</Command.Item>
         </Command.Group>
         {notes.length > 0 && (
           <Command.Group heading="Notes">

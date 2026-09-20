@@ -141,9 +141,3 @@ body {
   color: #888;
   text-align: center;
 }
-
-.cmdk-shortcut {
-  font-size: 11px;
-  color: #888;
-  flex-shrink: 0;
-}
