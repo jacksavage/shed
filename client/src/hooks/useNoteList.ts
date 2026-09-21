@@ -4,8 +4,15 @@ import type { Note } from '../types'
 
 function mapToNotes(): Note[] {
   const result: Note[] = []
-  metaMap.forEach((entry, id) => result.push({ id, ...entry }))
-  return result.sort((a, b) => b.created_at - a.created_at)
+  // entry may predate the headingText/text fields (old client, shared CRDT store) — default them
+  metaMap.forEach((entry, id) => result.push({
+    id,
+    headingText: entry.headingText ?? '',
+    text: entry.text ?? '',
+    created_at: entry.created_at,
+    updated_at: entry.updated_at ?? entry.created_at,
+  }))
+  return result.sort((a, b) => b.updated_at - a.updated_at)
 }
 
 export function useNoteList() {
@@ -17,19 +24,19 @@ export function useNoteList() {
     return () => metaMap.unobserve(observer)
   }, [])
 
-  function createNote(title = 'Untitled'): string {
+  function createNote(): string {
     const id = crypto.randomUUID()
     const now = Date.now()
-    metaMap.set(id, { title, created_at: now, updated_at: now })
+    metaMap.set(id, { headingText: '', text: '', created_at: now, updated_at: now })
     return id
   }
 
-  function renameNote(id: string, title: string) {
+  function updateNoteContent(id: string, headingText: string, text: string) {
     const existing = metaMap.get(id)
-    if (existing) {
-      metaMap.set(id, { ...existing, title, updated_at: Date.now() })
-    }
+    if (!existing) return
+    if (existing.headingText === headingText && existing.text === text) return
+    metaMap.set(id, { ...existing, headingText, text, updated_at: Date.now() })
   }
 
-  return { notes, createNote, renameNote }
+  return { notes, createNote, updateNoteContent }
 }

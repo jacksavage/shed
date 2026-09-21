@@ -2,7 +2,7 @@ import * as Y from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 
-export type NoteEntry = { title: string; created_at: number; updated_at: number }
+export type NoteEntry = { headingText: string; text: string; created_at: number; updated_at: number }
 
 const META_ROOM = '__shed_meta__'
 
