@@ -4,14 +4,7 @@ import type { Note } from '../types'
 
 function mapToNotes(): Note[] {
   const result: Note[] = []
-  // entry may predate the headingText/text fields (old client, shared CRDT store) — default them
-  metaMap.forEach((entry, id) => result.push({
-    id,
-    headingText: entry.headingText ?? '',
-    text: entry.text ?? '',
-    created_at: entry.created_at,
-    updated_at: entry.updated_at ?? entry.created_at,
-  }))
+  metaMap.forEach((entry, id) => result.push({ id, ...entry }))
   return result.sort((a, b) => b.updated_at - a.updated_at)
 }
 
