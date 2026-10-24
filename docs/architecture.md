@@ -59,7 +59,7 @@ no editor binding, so the plan's GC concerns don't apply to it the same way).
 
 ## Editor wiring
 
-BlockNote (shadcn UI kit) is confined to `components/Editor.tsx` and its `editor.css`;
+BlockNote (Mantine UI kit) is confined to `components/Editor.tsx` and its `editor.css`;
 nothing else imports it (see `editor-choice.md`, "Lock-in").
 
 - `App.tsx` creates the note's `Y.Doc` (with y-indexeddb) and `HocuspocusProvider`
@@ -78,9 +78,10 @@ nothing else imports it (see `editor-choice.md`, "Lock-in").
 - Undo is BlockNote's Yjs undo (y-prosemirror's `UndoManager`), so it only undoes local
   changes.
 
-Styling: Tailwind v4 is present only because the shadcn kit needs it, and is scoped to
-the kit (no preflight; see the comments in `editor.css`). The rest of the app is plain
-CSS in `global.css`. React is 19 because the kit's menus need it.
+Styling: the kit's stylesheet (`@blocknote/mantine/style.css`) is scoped to BlockNote and
+Mantine classes and leaves out Mantine's global reset; `editor.css` only sets the
+column layout. The rest of the app is plain CSS in `global.css`. React stays on 18:
+Mantine 8.3 supports it, and Mantine 9 would require React 19 (see `editor-choice.md`).
 
 ## UI
 

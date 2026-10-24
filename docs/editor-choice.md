@@ -1,7 +1,8 @@
 # Editor choice: Tiptap vs BlockNote vs BlockSuite
 
-**Status: adopted — BlockNote 0.56 with the shadcn UI kit** (2026-10-24). Shed used
-Tiptap 2 + StarterKit before. The evaluation below is kept as the record of why; what was
+**Status: adopted — BlockNote 0.56 with the Mantine UI kit** (Mantine 8.3, React 18;
+2026-10-24). Shed used Tiptap 2 + StarterKit before. shadcn was tried first and dropped
+for Mantine because Mantine is lighter (see the measurements below). The evaluation below is kept as the record of why; what was
 learned while adopting it is under "Adoption notes" at the end.
 
 ## BlockSuite: rejected
@@ -40,7 +41,7 @@ of chunks that load on demand, such as the emoji picker.
 
 | Setup | JS | CSS | Total |
 |---|---|---|---|
-| Tiptap 2 + StarterKit (current) | 195 KB | — | ~195 KB |
+| Tiptap 2 + StarterKit (previous editor) | 195 KB | — | ~195 KB |
 | BlockNote + ariakit | 364 KB | 10 KB | ~374 KB |
 | BlockNote + Mantine | 355 KB | 37 KB | ~392 KB |
 | BlockNote + shadcn | 393 KB | 15 KB | ~408 KB |
@@ -50,17 +51,24 @@ Measured in shed itself (full app, `npm run build`, 2026-10-24):
 | Build | JS | CSS | Initial total | Lazy chunks |
 |---|---|---|---|---|
 | Tiptap 2 + StarterKit, React 18 (before) | 204 KB | 0.9 KB | ~205 KB | — |
-| BlockNote + shadcn, React 18 | 443 KB | 15 KB | ~458 KB | 110 KB |
-| BlockNote + shadcn, React 19 (shipped) | 467 KB | 15 KB | ~482 KB | 110 KB |
+| **BlockNote + Mantine 8.3, React 18 (shipped)** | **406 KB** | **38 KB** | **~443 KB** | 110 KB |
+| BlockNote + Mantine 9.7, React 19 | 437 KB | 40 KB | ~477 KB | 110 KB |
+| BlockNote + shadcn, React 18 (menus broken) | 443 KB | 15 KB | ~458 KB | 110 KB |
+| BlockNote + shadcn, React 19 | 467 KB | 15 KB | ~482 KB | 110 KB |
 
-So the switch costs about **+277 KB gz** on first load: ~253 KB for BlockNote and the
-kit, ~24 KB for React 19 (which the kit needs, see below). That is more than the
-minimal-editor delta above (+213 KB). The difference is React 19, plus a second copy of
-`lib0` (BlockNote core pins a 1.0 RC; Yjs and Hocuspocus use 0.2) and BlockNote's table,
-code-highlighting and file-block extensions that a minimal build may tree-shake less of
-in a real app. Code-splitting the editor out of the initial chunk is a possible
-follow-up; it wouldn't shrink the total, but the note list and palettes could render
-first.
+**Why Mantine 8.3 on React 18:** the owner picked Mantine because it's lighter, and in
+shed the gap is wider than in the minimal builds. shadcn forces React 19 (see "Adoption
+notes"), and Mantine 9 also requires React ≥ 19.2. Mantine 8.3 still supports React 18
+and `@blocknote/mantine` 0.56 accepts it (`^8.3.11 || ^9.0.2`), which makes it the
+lightest working combination: ~39 KB less than shadcn on React 19. Moving to Mantine 9
+later means moving to React 19 too; together they measured ~34 KB more.
+
+So the switch costs about **+238 KB gz** on first load, against +197 KB for the same kit
+in the minimal-editor build above. The difference is a second copy of `lib0` (BlockNote
+core pins a 1.0 RC; Yjs and Hocuspocus use 0.2) plus whatever of BlockNote's table,
+code-highlighting and file-block code a real app keeps. Code-splitting the editor out of
+the initial chunk is a possible follow-up; it wouldn't shrink the total, but the note
+list and palettes could render first.
 
 - **Mantine** is MIT and fully free. It's BlockNote's default and best-polished kit.
 - **shadcn** saves nothing on size: it adds `@base-ui/react`, `lucide-react` and
@@ -120,7 +128,22 @@ provider, user } }))`. That entry point imports `y-prosemirror`, which is only a
 `provider` only needs `{ awareness }`; Hocuspocus types its awareness as nullable, so
 shed passes `provider.awareness ?? undefined`.
 
-### The shadcn kit needs React 19 and a Tailwind theme
+### Mantine kit setup
+
+- `@blocknote/mantine`, `@mantine/core` and `@mantine/hooks` are pinned exactly, like the
+  other BlockNote packages.
+- `@blocknote/mantine/style.css` imports Mantine's per-component styles but deliberately
+  **not** Mantine's global reset, and all of its rules are scoped to `.bn-*` / `.m_*`
+  classes. So the cmdk palettes and the rest of the app are unaffected, and shed needs
+  no Tailwind or other CSS framework.
+- `BlockNoteView` brings its own `MantineProvider`; the app doesn't add one. Mantine
+  components are not used anywhere outside `Editor.tsx`.
+- `theme="light"` is forced, since the app has no dark mode yet.
+
+### Why not shadcn (tried first)
+
+The shadcn kit was adopted first and dropped the same day. Kept here because the
+problems weren't visible from the package metadata:
 
 - **React 19.** The kit's components are current-style shadcn: plain function
   components that take `ref` as a prop, no `forwardRef`. base-ui passes the kit's
@@ -129,17 +152,12 @@ shed passes `provider.awareness ?? undefined`.
   The package's peer range says React 18 is fine; in practice it isn't. The slash menu
   and formatting toolbar work on 18 because BlockNote positions those itself.
 - **Theme tokens.** The kit ships Tailwind utility classes (`bg-popover`,
-  `text-muted-foreground`, …) but no shadcn theme variables, and no compiled
-  utilities. Shed's `components/editor.css` defines shadcn's neutral tokens and maps them
-  into Tailwind's theme. Re-theming the menus means changing those variables.
-- **Tailwind kept small.** No preflight (it's a global reset and would restyle the cmdk
-  palettes); only the theme and utilities layers, generated only from the kit's dist
-  (`source(none)` + one `@source`). The handful of resets the kit's buttons need are
-  re-applied scoped to `.bn-shadcn`. The `dark:` variant is bound to a `.dark` class so
-  the kit doesn't follow the OS into a dark theme the app doesn't have.
-- The kit's menus reference `animate-in` / `fade-in-0` classes from `tw-animate-css`,
-  which isn't installed, so menus appear without animation. Harmless; add the package
-  if animation is wanted.
+  `text-muted-foreground`, …) but no shadcn theme variables and no compiled utilities.
+  The app has to supply shadcn's tokens and run Tailwind v4 over the kit's dist.
+- **Tailwind scope.** Tailwind's preflight is a global reset that would restyle the cmdk
+  palettes, so it had to be left out and the few resets the kit relies on re-applied
+  scoped to `.bn-shadcn`. Its menus also expect `tw-animate-css` for their animations.
+- Net: more setup, a React major upgrade, and a heavier bundle in shed than Mantine.
 
 ### Search extraction and the empty-doc race
 
