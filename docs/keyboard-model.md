@@ -87,6 +87,9 @@ so moving through text feels continuous.
 
 ## Libraries and prior art
 
+- **BlockNote's own keymap** (Tab nesting, block-type shortcuts, `/` and `:` menu
+  triggers, …) is listed in `editor-choice.md`, "Adoption notes". The modal layer has to
+  take keys before those in every mode except insert.
 - **No maintained vim library exists for ProseMirror or Tiptap.** Neither npm nor the
   ProseMirror forum turned one up, and the ProseMirror maintainer has said they don't plan
   to write one ([forum](https://discuss.prosemirror.net/t/prosemirror-vim-bindings/2549)).
