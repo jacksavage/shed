@@ -100,7 +100,7 @@ function extractSearchText(blocks: AnyBlock[]): { headingText: string; text: str
 export function Editor({ doc, provider, onContentChange }: EditorProps) {
   const onContentChangeRef = useRef(onContentChange)
   onContentChangeRef.current = onContentChange
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const fragment = useMemo(() => doc.getXmlFragment(FRAGMENT_NAME), [doc])
 
