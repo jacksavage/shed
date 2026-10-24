@@ -1,0 +1,17 @@
+/* Layout for the BlockNote editor in shed's single-pane view. Imported only by
+   Editor.tsx; the kit's own styles come from @blocknote/mantine/style.css. */
+
+.shed-editor {
+  max-width: 760px;
+  margin: 0 auto;
+  min-height: 60vh;
+}
+
+/* BlockNote pads the editor for its side menu (drag handle, +). Keep that gutter, but
+   nothing else, so text lines up with the centred column. */
+.shed-editor .bn-editor {
+  padding-inline: 54px;
+  padding-block: 8px 30vh;
+  font-size: 16px;
+  background: transparent;
+}
