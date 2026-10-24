@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { Editor } from './components/Editor'
 import { CommandPalette } from './components/CommandPalette'
@@ -8,17 +8,29 @@ import { createProvider } from './lib/provider'
 import { useNoteList } from './hooks/useNoteList'
 import { shortcutLabel } from './lib/platform'
 import type * as Y from 'yjs'
+import type { HocuspocusProvider } from '@hocuspocus/provider'
 
-// Hotkeys should fire from anywhere, including form fields and the ProseMirror editor
+// Hotkeys should fire from anywhere, including form fields and the BlockNote editor
 const HOTKEY_OPTS = { enableOnFormTags: true, enableOnContentEditable: true, preventDefault: true }
+
+// The Y.Doc and provider of the note on screen, tagged with the note they belong to.
+// Tagging is what keeps lifetimes in order on a note switch: the render that changes
+// activeNoteId already sees a mismatched session and unmounts the Editor, before the
+// effect cleanup below destroys the old doc and provider. Without the tag, the old
+// Editor would briefly render against a destroyed doc while reporting its content
+// under the new note's id.
+interface NoteSession {
+  noteId: string
+  doc: Y.Doc
+  provider: HocuspocusProvider
+}
 
 export default function App() {
   const { notes, createNote, updateNoteContent } = useNoteList()
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
-  const [editorReady, setEditorReady] = useState(false)
+  const [session, setSession] = useState<NoteSession | null>(null)
   const [commandsOpen, setCommandsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const docRef = useRef<Y.Doc | null>(null)
 
   // Auto-select the most recently updated note once the list loads from IndexedDB
   useEffect(() => {
@@ -31,22 +43,23 @@ export default function App() {
   useEffect(() => {
     if (!activeNoteId) return
     let cancelled = false
-    setEditorReady(false)
+    const noteId = activeNoteId
 
-    const { doc, persistence } = createYdoc(activeNoteId)
-    const provider = createProvider(activeNoteId, doc)
-    docRef.current = doc
+    const { doc, persistence } = createYdoc(noteId)
+    const provider = createProvider(noteId, doc)
 
+    // Mount the editor only once IndexedDB has hydrated the doc, so the first render
+    // (and the initial search extraction) sees the stored content, not an empty doc
     persistence.once('synced', () => {
-      if (!cancelled) setEditorReady(true)
+      if (!cancelled) setSession({ noteId, doc, provider })
     })
 
     return () => {
       cancelled = true
+      setSession(null)
       provider.destroy()
       persistence.destroy()
       doc.destroy()
-      docRef.current = null
     }
   }, [activeNoteId])
 
@@ -80,12 +93,14 @@ export default function App() {
           </div>
         ) : (
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-            {!editorReady || !docRef.current ? (
+            {session?.noteId !== activeNoteId ? (
               <div style={{ color: '#888', fontFamily: 'sans-serif', fontSize: 14 }}>Loading…</div>
             ) : (
               <Editor
-                doc={docRef.current}
-                onContentChange={(headingText, text) => updateNoteContent(activeNoteId, headingText, text)}
+                key={session.noteId}
+                doc={session.doc}
+                provider={session.provider}
+                onContentChange={(headingText, text) => updateNoteContent(session.noteId, headingText, text)}
               />
             )}
           </div>
