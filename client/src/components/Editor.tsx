@@ -44,7 +44,9 @@ function tabUser(): { name: string; color: string } {
   } catch {
     // Storage blocked or corrupt — fall through and generate a fresh one
   }
-  const user = { name: pick(CURSOR_NAMES), color: pick(CURSOR_COLORS) }
+  // The number keeps two tabs from easily ending up with the same label (10 names alone
+  // collide often enough to make collaborators indistinguishable)
+  const user = { name: `${pick(CURSOR_NAMES)} ${10 + Math.floor(Math.random() * 90)}`, color: pick(CURSOR_COLORS) }
   try {
     sessionStorage.setItem(key, JSON.stringify(user))
   } catch {
