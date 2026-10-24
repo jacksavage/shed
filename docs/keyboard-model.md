@@ -5,7 +5,8 @@ modes and Workflowy-style folding. Mouse is an optional path for some users.
 
 ## Modes
 
-The editor has nested modes. Esc always goes up one level.
+The editor has nested modes. Esc goes up one level. The exit from text normal to outline
+is an open question; see "Esc from text normal" below.
 
 ```
 Outline mode  ──i/a/Enter──►  Text normal  ──i/a/o──►  Insert
@@ -74,6 +75,15 @@ so moving through text feels continuous.
 - **Fold state is per-user view state.** Store it locally (IndexedDB, keyed by block ID),
   not in the shared doc. Otherwise one user's folding collapses blocks for everyone.
 - **Esc ownership.** Palettes and menus need to consume Esc before the mode stack sees it.
+- **Esc from text normal.** Vim users press Esc over and over out of habit. Notebook vim
+  modes therefore *don't* let plain Esc leave the cell: jupyterlab-vim and marimo use
+  Shift-Esc / Ctrl-Esc. jupyterlab-vim later added an opt-in "double duty Esc".
+  Leaving a block in shed costs less than in a notebook if re-entering with `i` puts the
+  caret back where it was. Proposal: plain Esc exits (the original design), remember the
+  caret per block, and offer a setting for Shift-Esc-only exit.
+- **Flat vs tree, revisited.** Notebooks are flat cell lists, yet "collapsible headings"
+  folds them well by deriving sections from heading levels. A flat model could handle
+  heading folding. Workflowy-style sublist folding and subtree moves still need a tree.
 
 ## Libraries and prior art
 
@@ -89,3 +99,26 @@ so moving through text feels continuous.
   Workflowy clone. It is the closest prior art for outline-mode semantics: zoom, folding,
   block moves. It appears to be unmaintained. Use it for reference, not as a dependency.
 - **Vimliner**, **org-mode / evil-org**: Tab fold cycling, outline conventions.
+
+### Notebooks (Jupyter, marimo, Datalore, Colab)
+
+Notebooks are the closest mainstream match for this model. Jupyter's **command mode /
+edit mode** split is shed's outline mode / text modes, and vim plugins add a third layer
+in between, exactly as proposed here.
+
+| Tool | What to borrow |
+|---|---|
+| Jupyter command mode | Esc → command mode, Enter → edit. `a`/`b` insert above/below, `dd` delete, `z` undo cell delete, `x`/`c`/`v` cut/copy/paste, `Shift-M` merge, `Ctrl-Shift--` split, `m`/`y`/`1`–`6` change cell type and heading level, `Shift-J/K` extend selection |
+| jupyterlab-vim | Three layers: command mode → vim normal → insert. `gg`/`G` first/last cell, `Ctrl-J/K` move between cells from inside vim. Shift-Esc leaves the cell; plain Esc stays in vim normal |
+| marimo (vim keymap) | Ctrl/Cmd-Esc from vim normal → command mode. Plain `j`/`k`, `gg`/`G`, `Shift-J/K` extend selection, `i`/Enter back into the cell. Optional user `.vimrc` |
+| Datalore | Plain `k`/`j` for previous/next cell in command mode |
+| Collapsible headings (Jupyter) | Left/Right collapse/expand the selected heading's section in command mode, Ctrl-Shift-Left/Right collapse/expand all. Matches the `h`/`l` fold proposal |
+| Colab | `Ctrl-M` prefix chord for every command-mode key. A precedent for working within browser-reserved keys |
+
+What this suggests for shed:
+- Add block-type keys in outline mode: `1`–`6` heading level, `0` paragraph (Jupyter).
+- Add join and split blocks: `gJ` / split at caret (Jupyter merge/split).
+- `Shift-J/K` means "extend selection" in Jupyter, marimo and Datalore, but this doc uses
+  it for "move block". Keep move on `J`/`K` (vim-ish) or switch to the notebook
+  convention. Choose before building.
+- A `.vimrc`-style user remap file (marimo) is cheap if bindings are data from the start.
