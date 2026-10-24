@@ -2,16 +2,19 @@
 // exit cheap if BlockNote is ever dropped (see docs/editor-choice.md, "Lock-in").
 import { useEffect, useMemo, useRef } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
-import { BlockNoteView } from '@blocknote/shadcn'
+import { BlockNoteView } from '@blocknote/mantine'
 import { withCollaboration } from '@blocknote/core/yjs'
 import type { Block, BlockNoteEditor } from '@blocknote/core'
+import type { HocuspocusProvider } from '@hocuspocus/provider'
+import type * as Y from 'yjs'
+// The kit's stylesheet includes Mantine's component styles but deliberately not
+// Mantine's global reset, so it doesn't restyle the rest of the app. Mantine itself is
+// only used through BlockNoteView, which brings its own MantineProvider.
+import '@blocknote/mantine/style.css'
+import './editor.css'
 
 // Extraction walks whatever schema the editor has, so it doesn't pin the generics
 type AnyBlock = Block<any, any, any>
-import type { HocuspocusProvider } from '@hocuspocus/provider'
-import type * as Y from 'yjs'
-import '@blocknote/shadcn/style.css'
-import './editor.css'
 
 interface EditorProps {
   doc: Y.Doc
@@ -165,7 +168,7 @@ export function Editor({ doc, provider, onContentChange }: EditorProps) {
     }
   }, [editor, fragment])
 
-  // theme is forced light: the rest of the app has no dark mode yet, and the shadcn
-  // kit's dark: variants would otherwise follow the OS setting.
+  // theme is forced light: the rest of the app has no dark mode yet, and BlockNote would
+  // otherwise follow the OS colour scheme.
   return <BlockNoteView editor={editor} theme="light" className="shed-editor" />
 }
