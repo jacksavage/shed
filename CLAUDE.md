@@ -1,6 +1,6 @@
 # shed — notes for Claude
 
-Collaborative, offline-first notes PWA: Tiptap (ProseMirror) + Yjs + Hocuspocus + SQLite.
+Collaborative, offline-first notes PWA: BlockNote (on Tiptap/ProseMirror) + Yjs + Hocuspocus + SQLite.
 See `README.md` for dev commands.
 
 ## Documentation is part of the work
@@ -26,3 +26,5 @@ describes what is actually built and where it diverges from the plan.
 - **Keyboard-first, vim-style UX** is the target, with mouse as an optional path.
   See `docs/keyboard-model.md`. Palettes mirror VS Code bindings (Ctrl+Shift+P/F1, Ctrl+P).
 - Yjs is the source of truth; nothing else stores note content as primary data.
+- **BlockNote stays inside `client/src/components/Editor.tsx`**, with exact-pinned
+  versions (pre-1.0). See `docs/editor-choice.md` for why and how to keep the exit cheap.

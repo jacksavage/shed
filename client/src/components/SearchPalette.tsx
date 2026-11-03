@@ -15,6 +15,9 @@ export function SearchPalette({ open, onOpenChange, notes, onSelectNote }: Searc
   const results = searchNotes(notes, query)
 
   function select(id: string) {
+    // Closing via onOpenChange(false) bypasses the Dialog's own onOpenChange below, so
+    // reset the query here too; otherwise the next Ctrl+P opens with the old search
+    setQuery('')
     onOpenChange(false)
     onSelectNote(id)
   }

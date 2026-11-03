@@ -99,7 +99,9 @@ need the tree.
 
 ## The schema lives in the editor, not in Yjs
 
-Yjs validates nothing: an `XmlFragment` accepts any tree. How a Tiptap note is stored:
+Yjs validates nothing: an `XmlFragment` accepts any tree. How a Tiptap StarterKit note
+is stored (shed's format before BlockNote; BlockNote wraps each block in
+`<blockGroup><blockContainer id=…>`, see `editor-choice.md`):
 
 ```
 <heading level="1">Groceries</heading><paragraph>buy <bold>milk</bold></paragraph>
@@ -148,7 +150,8 @@ Tiptap wraps ProseMirror concepts as `Node`, `Mark` and `Extension` classes. It 
 chainable command API (`editor.chain().focus().toggleBold().run()`) and React bindings,
 and it ships no UI of its own ("headless").
 
-**StarterKit** is a bundle of common extensions. In v2, which shed uses today:
+**StarterKit** is a bundle of common extensions. In v2, which shed used before switching
+to BlockNote (BlockNote builds its own schema on Tiptap 3 instead):
 - Nodes: Document, Paragraph, Text, Heading, Blockquote, BulletList, OrderedList,
   ListItem, CodeBlock, HorizontalRule, HardBreak
 - Marks: Bold, Italic, Strike, Code
@@ -157,7 +160,7 @@ and it ships no UI of its own ("headless").
 v3 adds Link, Underline, list keymaps and a trailing node, and renames History to
 UndoRedo.
 
-Shed configures `history: false`. ProseMirror's history would undo other users' edits;
+Shed configured `history: false`. ProseMirror's history would undo other users' edits;
 with Collaboration, undo comes from y-prosemirror's Yjs-based undo, which only undoes
 local changes.
 
