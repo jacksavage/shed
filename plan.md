@@ -4,6 +4,9 @@
 **Status:** Draft  
 **Stack:** Tiptap · Yjs · Hocuspocus · SQLite · Workbox
 
+> This is the original target design. Parts are superseded — see `docs/architecture.md`
+> for what is actually built and `docs/README.md` for design notes and decisions.
+
 -----
 
 ## 1. Overview
